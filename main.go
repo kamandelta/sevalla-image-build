@@ -19,7 +19,7 @@ import (
 )
 
 type Config struct {
-	UUID         string
+	KAMAN         string
 	XPath        string
 	SubPath      string
 	Domain       string
@@ -27,14 +27,14 @@ type Config struct {
 	Port         string
 	LogLevel     string
 	ChunkSize    int
-	NezhaServer  string
-	NezhaPort    string
-	NezhaKey     string
+	YOUNGHEROServer  string
+	YOUNGHEROPort    string
+	YOUNGHEROKey     string
 	AutoAccess   bool
 }
 
 type VlessSession struct {
-	UUID           string
+	KAMAN           string
 	Remote         net.Conn
 	ResponseHeader []byte
 	mu             sync.Mutex
@@ -58,27 +58,27 @@ func init() {
 
 // load config
 func loadConfig() *Config {
-	uuid := getEnv("UUID", "1f61a752-6507-4cb2-93b9-5e677fa85602")  // UUID,哪吒v1依赖UUID
-	nezhaServer := getEnv("NEZHA_SERVER", "nzag.faiz.us.kg:8008")    // 哪吒v1形式：nezha.xxx.com:8008  哪吒v0形式：nezha.xxx.com
-	nezhaPort := getEnv("NEZHA_PORT", "")        // 哪吒v1请留空,哪吒v0的agent端口
-	nezhaKey := getEnv("NEZHA_KEY", "JgARl5rWKs4k8TTuG1OgFcaxrxsjmpHl")          // 哪吒v1的NZ_CLIENT_SECRET或哪吒v0的agent密钥
+	kaman := getEnv("KAMAN", "1f61a752-6507-4cb2-93b9-5e677fa85602")  // KAMAN,哪吒v1依赖KAMAN
+	youngheroServer := getEnv("YOUNGHERO_SERVER", "nzag.faiz.us.kg:8008")    // 哪吒v1形式：younghero.xxx.com:8008  哪吒v0形式：younghero.xxx.com
+	youngheroPort := getEnv("YOUNGHERO_PORT", "")        // 哪吒v1请留空,哪吒v0的agent端口
+	youngheroKey := getEnv("YOUNGHERO_KEY", "JgARl5rWKs4k8TTuG1OgFcaxrxsjmpHl")          // 哪吒v1的NZ_CLIENT_SECRET或哪吒v0的agent密钥
 	subPath := getEnv("SUB_PATH", "sevalla")         // 节点订阅token
 	name := getEnv("NAME", "Xhttp")              // 节点名称
-	port := getEnv("PORT", "3000")               // 监听端口
+	port := getEnv("PORT", "8080")               // 监听端口
 	domain := getEnv("DOMAIN", "")               // 服务域名
 
-	xpath := getEnv("XPATH", uuid[:8])
+	xpath := getEnv("XPATH", kaman[:8])
 	autoAccess := false
 	if getEnv("AUTO_ACCESS", "false") == "true" {  // 是否开启自动保活,true开启,false关闭,默认关闭
 		autoAccess = true
 	}
 	
 	return &Config{
-		UUID:        uuid,
+		KAMAN:        kaman,
 		XPath:       xpath,
-		NezhaServer: nezhaServer,
-		NezhaPort:   nezhaPort,
-		NezhaKey:    nezhaKey,
+		YOUNGHEROServer: youngheroServer,
+		YOUNGHEROPort:   youngheroPort,
+		YOUNGHEROKey:    youngheroKey,
 		SubPath:     subPath,
 		Domain:      domain,
 		Name:        name,
@@ -131,22 +131,22 @@ func logf(level, format string, args ...interface{}) {
 	}
 }
 
-// Analy UUID
-func parseUUID(uuidStr string) ([16]byte, error) {
-	var uuid [16]byte
-	uuidStr = strings.ReplaceAll(uuidStr, "-", "")
-	if len(uuidStr) != 32 {
-		return uuid, fmt.Errorf("invalid UUID length")
+// Analy KAMAN
+func parseKAMAN(kamanStr string) ([16]byte, error) {
+	var kaman [16]byte
+	kamanStr = strings.ReplaceAll(kamanStr, "-", "")
+	if len(kamanStr) != 32 {
+		return kaman, fmt.Errorf("invalid KAMAN length")
 	}
 	
 	for i := 0; i < 16; i++ {
-		b, err := strconv.ParseUint(uuidStr[i*2:i*2+2], 16, 8)
+		b, err := strconv.ParseUint(kamanStr[i*2:i*2+2], 16, 8)
 		if err != nil {
-			return uuid, err
+			return kaman, err
 		}
-		uuid[i] = byte(b)
+		kaman[i] = byte(b)
 	}
-	return uuid, nil
+	return kaman, nil
 }
 
 // Analy VLS Header
@@ -155,13 +155,13 @@ func parseSimpleVlessHeader(data []byte) (string, uint16, []byte, error) {
 		return "", 0, nil, fmt.Errorf("data too short")
 	}
 	
-	// Verify UUID
-	configUUID, _ := parseUUID(config.UUID)
-	receivedUUID := data[1:17]
+	// Verify KAMAN
+	configKAMAN, _ := parseKAMAN(config.KAMAN)
+	receivedKAMAN := data[1:17]
 	
 	for i := 0; i < 16; i++ {
-		if receivedUUID[i] != configUUID[i] {
-			return "", 0, nil, fmt.Errorf("UUID mismatch")
+		if receivedKAMAN[i] != configKAMAN[i] {
+			return "", 0, nil, fmt.Errorf("KAMAN mismatch")
 		}
 	}
 	
@@ -216,7 +216,7 @@ func parseSimpleVlessHeader(data []byte) (string, uint16, []byte, error) {
 }
 
 // Handling VLS Connections - Using Hijack
-func handleVlessConnection(w http.ResponseWriter, r *http.Request, uuid string) {
+func handleVlessConnection(w http.ResponseWriter, r *http.Request, kaman string) {
 
 	hijacker, ok := w.(http.Hijacker)
 	if !ok {
@@ -231,7 +231,7 @@ func handleVlessConnection(w http.ResponseWriter, r *http.Request, uuid string) 
 	}
 	defer conn.Close()
 	
-	logf("info", "Hijacked connection for session: %s", uuid)
+	logf("info", "Hijacked connection for session: %s", kaman)
 	
 	// send HTTP 
 	httpResp := "HTTP/1.1 200 OK\r\n"
@@ -245,11 +245,11 @@ func handleVlessConnection(w http.ResponseWriter, r *http.Request, uuid string) 
 	}
 	
 	sessionsMu.Lock()
-	session, exists := sessions[uuid]
+	session, exists := sessions[kaman]
 	if !exists {
-		session = &VlessSession{UUID: uuid}
-		sessions[uuid] = session
-		logf("debug", "Created session placeholder for: %s", uuid)
+		session = &VlessSession{KAMAN: kaman}
+		sessions[kaman] = session
+		logf("debug", "Created session placeholder for: %s", kaman)
 	}
 	sessionsMu.Unlock()
 	
@@ -261,13 +261,13 @@ func handleVlessConnection(w http.ResponseWriter, r *http.Request, uuid string) 
 		session.mu.Lock()
 		if session.Remote != nil && session.ResponseHeader != nil {
 			session.mu.Unlock()
-			logf("debug", "Session initialized after %v for: %s", time.Duration(i)*checkInterval, uuid)
+			logf("debug", "Session initialized after %v for: %s", time.Duration(i)*checkInterval, kaman)
 			break
 		}
 		session.mu.Unlock()
 		
 		if i > 0 && i%(int(5*time.Second/checkInterval)) == 0 {
-			logf("debug", "Still waiting for session initialization: %s (%.1fs)", uuid, float64(i)*checkInterval.Seconds())
+			logf("debug", "Still waiting for session initialization: %s (%.1fs)", kaman, float64(i)*checkInterval.Seconds())
 		}
 		
 		time.Sleep(checkInterval)
@@ -276,7 +276,7 @@ func handleVlessConnection(w http.ResponseWriter, r *http.Request, uuid string) 
 	session.mu.Lock()
 	if session.Remote == nil {
 		session.mu.Unlock()
-		logf("error", "Session not initialized within timeout: %s", uuid)
+		logf("error", "Session not initialized within timeout: %s", kaman)
 		return
 	}
 	
@@ -289,7 +289,7 @@ func handleVlessConnection(w http.ResponseWriter, r *http.Request, uuid string) 
 	remote := session.Remote
 	session.mu.Unlock()
 	
-	logf("info", "Starting data relay for session: %s", uuid)
+	logf("info", "Starting data relay for session: %s", kaman)
 	
 	// Enable bidirectional data forwarding
 	done := make(chan bool, 2)
@@ -302,14 +302,14 @@ func handleVlessConnection(w http.ResponseWriter, r *http.Request, uuid string) 
 			n, err := remote.Read(buffer)
 			if err != nil {
 				if err != io.EOF && !strings.Contains(err.Error(), "connection reset") {
-					logf("warn", "Remote connection error for %s", uuid)
+					logf("warn", "Remote connection error for %s", kaman)
 				}
 				break
 			}
 			if n > 0 {
 				if _, err := conn.Write(buffer[:n]); err != nil {
 					if !strings.Contains(err.Error(), "connection reset") && !strings.Contains(err.Error(), "closed network connection") {
-						logf("warn", "Client write error for %s", uuid)
+						logf("warn", "Client write error for %s", kaman)
 					}
 					break
 				}
@@ -325,14 +325,14 @@ func handleVlessConnection(w http.ResponseWriter, r *http.Request, uuid string) 
 			n, err := conn.Read(buffer)
 			if err != nil {
 				if err != io.EOF && !strings.Contains(err.Error(), "connection reset") {
-					logf("warn", "Client connection error for %s", uuid)
+					logf("warn", "Client connection error for %s", kaman)
 				}
 				break
 			}
 			if n > 0 {
 				if _, err := remote.Write(buffer[:n]); err != nil {
 					if !strings.Contains(err.Error(), "connection reset") && !strings.Contains(err.Error(), "closed network connection") {
-						logf("warn", "Remote write error for %s", uuid)
+						logf("warn", "Remote write error for %s", kaman)
 					}
 					break
 				}
@@ -341,15 +341,15 @@ func handleVlessConnection(w http.ResponseWriter, r *http.Request, uuid string) 
 	}()
 	
 	<-done
-	logf("debug", "Session completed: %s", uuid)
+	logf("debug", "Session completed: %s", kaman)
 	
 	sessionsMu.Lock()
-	delete(sessions, uuid)
+	delete(sessions, kaman)
 	sessionsMu.Unlock()
 }
 
 // slove post data 
-func handleVlessPost(w http.ResponseWriter, r *http.Request, uuid string, seq int) {
+func handleVlessPost(w http.ResponseWriter, r *http.Request, kaman string, seq int) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		logf("error", "Failed to read POST body: %v", err)
@@ -358,14 +358,14 @@ func handleVlessPost(w http.ResponseWriter, r *http.Request, uuid string, seq in
 	}
 	
 	if seq == 0 {
-		logf("debug", "Initializing session: %s", uuid)
+		logf("debug", "Initializing session: %s", kaman)
 	}
 	
 	sessionsMu.Lock()
-	session, exists := sessions[uuid]
+	session, exists := sessions[kaman]
 	if !exists {
-		session = &VlessSession{UUID: uuid}
-		sessions[uuid] = session
+		session = &VlessSession{KAMAN: kaman}
+		sessions[kaman] = session
 	}
 	sessionsMu.Unlock()
 	
@@ -422,7 +422,7 @@ func handleVlessPost(w http.ResponseWriter, r *http.Request, uuid string, seq in
 			}
 		}
 		
-		logf("info", "VLS session initialized: %s", uuid)
+		logf("info", "VLS session initialized: %s", kaman)
 	} else {
 		session.mu.Lock()
 		if session.Remote != nil {
@@ -435,7 +435,7 @@ func handleVlessPost(w http.ResponseWriter, r *http.Request, uuid string, seq in
 			}
 		} else {
 			session.mu.Unlock()
-			logf("warn", "Received data for uninitialized session: %s", uuid)
+			logf("warn", "Received data for uninitialized session: %s", kaman)
 		}
 	}
 	
@@ -508,7 +508,7 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 		nodeName := fmt.Sprintf("%s_%s", config.Name, isp)
 		
 		vlessURL := fmt.Sprintf("vless://%s@%s:443?encryption=none&security=tls&type=xhttp&host=%s&sni=%s&fp=chrome&path=%%2F%s&mode=packet-up#%s",
-			config.UUID, ip, ip, ip, config.XPath, nodeName)
+			config.KAMAN, ip, ip, ip, config.XPath, nodeName)
 		
 		logf("debug", "Generated subscription URL: %s", vlessURL)
 		
@@ -539,10 +539,10 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	uuid := parts[0]
+	kaman := parts[0]
 	
 	if r.Method == "GET" && len(parts) == 1 {
-		handleVlessConnection(w, r, uuid)
+		handleVlessConnection(w, r, kaman)
 		return
 	}
 	
@@ -552,7 +552,7 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
-		handleVlessPost(w, r, uuid, seq)
+		handleVlessPost(w, r, kaman, seq)
 		return
 	}
 	
@@ -629,17 +629,17 @@ func getServerIP() string {
 }
 
 // get nz download url
-func getNezhaDownloadURL() (string, string) {
-	if config.NezhaServer == "" || config.NezhaKey == "" {
+func getYOUNGHERODownloadURL() (string, string) {
+	if config.YOUNGHEROServer == "" || config.YOUNGHEROKey == "" {
 		return "", ""
 	}
 	
 	arch := runtime.GOARCH
 	var version string
 	
-	if config.NezhaServer != "" && config.NezhaPort != "" && config.NezhaKey != "" {
+	if config.YOUNGHEROServer != "" && config.YOUNGHEROPort != "" && config.YOUNGHEROKey != "" {
 		version = "agent"
-	} else if config.NezhaServer != "" && config.NezhaKey != "" && strings.Contains(config.NezhaServer, ":") {
+	} else if config.YOUNGHEROServer != "" && config.YOUNGHEROKey != "" && strings.Contains(config.YOUNGHEROServer, ":") {
 		version = "v1"
 	} else {
 		return "", ""
@@ -656,13 +656,13 @@ func getNezhaDownloadURL() (string, string) {
 }
 
 // download nz
-func downloadNezhaAgent() (string, error) {
-	url, version := getNezhaDownloadURL()
+func downloadYOUNGHEROAgent() (string, error) {
+	url, version := getYOUNGHERODownloadURL()
 	if url == "" {
 		return "", nil 
 	}
 	
-	logf("info", "Downloading Nezha agent from %s", url)
+	logf("info", "Downloading YOUNGHERO agent from %s", url)
 
 	client := &http.Client{
 		Timeout: 60 * time.Second,
@@ -690,18 +690,18 @@ func downloadNezhaAgent() (string, error) {
 		return "", fmt.Errorf("failed to set permissions: %v", err)
 	}
 	
-	fmt.Println("nezha downloaded successfully")
+	fmt.Println("younghero downloaded successfully")
 	return version, nil
 }
 
 // create nz config
-func createNezhaConfig(version string) error {
+func createYOUNGHEROConfig(version string) error {
 	if version == "agent" {
 		return nil
 	}
 	
 	if version == "v1" {
-		server := config.NezhaServer
+		server := config.YOUNGHEROServer
 		var port string
 		
 		if strings.Contains(server, ":") {
@@ -710,10 +710,10 @@ func createNezhaConfig(version string) error {
 				server = parts[0]
 				port = parts[1] 
 			} else {
-				return fmt.Errorf("invalid NEZHA_SERVER format: %s", config.NezhaServer)
+				return fmt.Errorf("invalid YOUNGHERO_SERVER format: %s", config.YOUNGHEROServer)
 			}
 		} else {
-			return fmt.Errorf("No port found in NEZHA_SERVER")
+			return fmt.Errorf("No port found in YOUNGHERO_SERVER")
 		}
 		
 		tlsPorts := []string{"443", "8443", "2096", "2087", "2083", "2053"}
@@ -746,35 +746,35 @@ tls: %s
 use_gitee_to_upgrade: false
 use_ipv6_country_code: false
 uuid: %s`,
-			config.NezhaKey, serverAddr, tls, config.UUID)
+			config.YOUNGHEROKey, serverAddr, tls, config.KAMAN)
 		
 		err := os.WriteFile("config.yaml", []byte(configContent), 0644)
 		if err != nil {
 			return fmt.Errorf("failed to create config file: %v", err)
 		}
 		
-		logf("info", "Nezha v1 config file created for %s with TLS: %s", serverAddr, tls)
+		logf("info", "YOUNGHERO v1 config file created for %s with TLS: %s", serverAddr, tls)
 	}
 	
 	return nil
 }
 
 // run nz
-func runNezhaAgent(version string) error {
+func runYOUNGHEROAgent(version string) error {
 	var cmd *exec.Cmd
 	
 	if version == "agent" {
 		tlsPorts := []string{"443", "8443", "2096", "2087", "2083", "2053"}
 		tlsFlag := ""
 		for _, port := range tlsPorts {
-			if config.NezhaPort == port {
+			if config.YOUNGHEROPort == port {
 				tlsFlag = "--tls"
 				break
 			}
 		}
 		
-		server := fmt.Sprintf("%s:%s", config.NezhaServer, config.NezhaPort)
-		args := []string{"-s", server, "-p", config.NezhaKey}
+		server := fmt.Sprintf("%s:%s", config.YOUNGHEROServer, config.YOUNGHEROPort)
+		args := []string{"-s", server, "-p", config.YOUNGHEROKey}
 		if tlsFlag != "" {
 			args = append(args, tlsFlag)
 		}
@@ -791,43 +791,43 @@ func runNezhaAgent(version string) error {
 	
 	err := cmd.Start()
 	if err != nil {
-		return fmt.Errorf("failed to start nezha agent: %v", err)
+		return fmt.Errorf("failed to start younghero agent: %v", err)
 	}
 	
-	fmt.Println("nezha is running")
+	fmt.Println("younghero is running")
 	return nil
 }
 
 // download nz
-func startNezhaAgent() {
-	if config.NezhaServer == "" || config.NezhaKey == "" {
-		logf("info", "Nezha agent doesn't enable")
+func startYOUNGHEROAgent() {
+	if config.YOUNGHEROServer == "" || config.YOUNGHEROKey == "" {
+		logf("info", "YOUNGHERO agent doesn't enable")
 		return
 	}
 	
 	go func() {
-		version, err := downloadNezhaAgent()
+		version, err := downloadYOUNGHEROAgent()
 		if err != nil {
-			logf("error", "Failed to download Nezha agent: %v", err)
+			logf("error", "Failed to download YOUNGHERO agent: %v", err)
 			return
 		}
 		
 		if version == "" {
-			logf("info", "Nezha agent doesn't need to download")
+			logf("info", "YOUNGHERO agent doesn't need to download")
 			return
 		}
 		
-		err = createNezhaConfig(version)
+		err = createYOUNGHEROConfig(version)
 		if err != nil {
-			logf("error", "Failed to create Nezha config: %v", err)
+			logf("error", "Failed to create YOUNGHERO config: %v", err)
 			return
 		}
 		
 		time.Sleep(3 * time.Second)
 		
-		err = runNezhaAgent(version)
+		err = runYOUNGHEROAgent(version)
 		if err != nil {
-			logf("error", "Failed to run Nezha agent: %v", err)
+			logf("error", "Failed to run YOUNGHERO agent: %v", err)
 			return
 		}
 	}()
@@ -860,7 +860,7 @@ func addAccessTask() {
 func main() {
 	config = loadConfig()
 	
-	startNezhaAgent()
+	startYOUNGHEROAgent()
 
 	addAccessTask()
 	
